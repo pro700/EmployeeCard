@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package dslVersion="1.0.0.0" 
+        Id="89094e16-a604-408e-9df6-15cab86aee35" 
+        solutionId="89094e16-a604-408e-9df6-15cab86aee35" 
+        xmlns="http://schemas.microsoft.com/VisualStudio/2008/SharePointTools/PackageModel" 
+        name="EmployeeCardAddIn"
+        sharePointProductVersion="15.0">
+  <features>
+        <featureReference itemId="fcf17f4b-d042-47d3-92f0-050e23367f93" />
+  </features>
+</package>

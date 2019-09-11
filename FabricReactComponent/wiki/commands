@@ -1,0 +1,4 @@
+yarn add webpack --dev
+yarn add webpack-cli --dev
+npm i webpack-cli @webpack-cli/init --save-dev
+

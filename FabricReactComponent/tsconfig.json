@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es5",
+    "lib": ["es2017", "dom"],
+    "jsx": "react",
+    "charset": "utf8",
+    "sourceMap": true
+
+  },
+  "exclude": [
+    "node_modules",
+    "webpack.config.js",
+    "server.js",
+    "dist"
+  ]
+}
