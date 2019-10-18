@@ -10,6 +10,7 @@
     <title></title>
 
     <script type="text/javascript" src="../Scripts/jquery-1.9.1.min.js"></script>
+    <script type="text/javascript" src="../Scripts/jquery.SPServices.js"></script>
     <script type="text/javascript" src="/_layouts/MicrosoftAjax.js"></script>
     <script type="text/javascript" src="/_layouts/sp.runtime.js"></script>
     <script type="text/javascript" src="/_layouts/sp.js"></script>

@@ -16,7 +16,7 @@ import * as React from 'react';
 import * as ReactDOM from "react-dom";
 
 //import * as sp from "@pnp/sp";
-import { sp, List, Item, ListEnsureResult, ItemAddResult, FieldAddResult, SiteUserProps, UserProfileQuery, SearchQuery, SearchQueryBuilder, SearchResult, Web, ContextInfo, SPConfiguration, SPRest, PermissionKind, Fields, Field, FieldCreationProperties, XmlSchemaFieldCreationInformation } from '@pnp/sp';
+import { sp, List, Item, ListEnsureResult, ItemAddResult, FieldAddResult, SiteUserProps, UserProfileQuery, Web, ContextInfo, SPConfiguration, SPRest, PermissionKind, Fields, Field, FieldCreationProperties, XmlSchemaFieldCreationInformation } from '@pnp/sp';
 
 import * as pnp from '@pnp/pnpjs';
 
@@ -28,8 +28,11 @@ import { TreeView, ItemRenderProps } from '@progress/kendo-react-treeview';
 //import '@progress/kendo-theme-bootstrap/scss/treeview.scss';
 import '@progress/kendo-theme-default/scss/treeview.scss';
 import './EmployeeCard.less'
-import { SearchQueryInit, ISearchQueryBuilder } from "@pnp/sp/src/search";
+import { ISearchQueryBuilder, SearchQuery, SearchResult, SearchResults, SearchQueryBuilder, SortDirection } from "@pnp/sp";
 import { SPRestAddIn } from "@pnp/sp-addinhelpers";
+//import "./SPServices/jquery.SPServices.js";
+//var spservices = require("./SPServices/jquery.SPServices.js");
+//import { InitSPServices, SPServices } from  "./SPServices/jquery.SPServices.js";
 
 export interface EmployeeCardRow {
     id: string;
@@ -84,7 +87,7 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
     constructor(props: EmployeeCardLayoutProps) {
         super(props);
 
-        this.state = { message: "message", error: "error", treeViewData: [] };
+        this.state = { message: "", error: "", treeViewData: [] };
 
     }
 
@@ -149,7 +152,6 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
     onExpandChange = (event) => {
         event.item.expanded = !event.item.expanded;
         this.forceUpdate();
-        //this.adjustSize();
     }
 
     onCheckChange = (event) => {
@@ -158,23 +160,6 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
     }
 
     componentDidMount() {
-
-        //this.adjustSize();
-
-        /*
-        var parent = window.parent;
-        window.parent.document.body.style.backgroundColor = "gray";
-        window.parent.addEventListener('message', (e) => {
-            var eventName = e.data[0];
-            var data = e.data[1];
-            switch (eventName) {
-                case 'setHeight':
-                    this.setState({ message: this.state.message + "Height=" + data });
-                    break;
-            }
-        }, false);
-        window.parent.postMessage(["setHeight", 118], "*");
-        */
 
         var hostweb = this.getUrlParamByName("SPHostUrl");
         var addinweb = this.getUrlParamByName("SPAppWebUrl");
@@ -193,6 +178,17 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
                     this.setState({
                         treeViewData: data
                     });
+
+                    this.getSearchedUsers()
+                        .then(d => {
+                            this.setState({ message: "getSearchedUsers() d=" + JSON.stringify(d) });
+                        })
+                        .catch(err => {
+                            this.setState({ error: "getSearchedUsers() err=" + err });
+                        });
+
+                    //window.setTimeout(this.getUserPrifileByIndex.bind(this), 1000, 0);
+
                 });
         }).catch(err => {
             this.setState({
@@ -200,6 +196,124 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
             });
         });
     }
+
+    getSearchedUsers(): Promise<any> {
+        return new Promise<any>((resolve, reject) => {
+
+            var hostweb = this.getUrlParamByName("SPHostUrl");
+            var addinweb = this.getUrlParamByName("SPAppWebUrl");
+
+            sp.setup({
+                sp: { baseUrl: addinweb }
+            });
+
+            taxonomy.setup({
+                sp: { baseUrl: addinweb }
+            });
+
+            const crossDomainWeb: Web = pnp.sp.crossDomainWeb(addinweb, hostweb);
+
+            crossDomainWeb.lists.getByTitle("EC_Cards").items.select("Id", "LastModifiedTime").top(1).orderBy("LastModifiedTime", false).get().then((items: any[]) => {
+                let lastModifiedTime: Date = new Date(1900, 0, 1);
+                if (items.length > 0) {
+                    lastModifiedTime = new Date(items["LastModifiedTime"]);
+                }
+
+                sp.search({
+                    Querytext: `LastModifiedTime>="${lastModifiedTime.toISOString()}"`,
+                    SourceId: 'b09a7990-05ea-4af9-81ef-edfab16c4e31',
+                    RowLimit: 1,
+                    SortList: [{ Property: "LastModifiedTime", Direction: SortDirection.Ascending }],
+                    SelectProperties: ['AccountName', 'LastModifiedTime', 'Department', 'JobTitle', 'WorkEmail', 'Path', 'PictureURL', 'PreferredName', 'UserProfile_GUID', 'OriginalPath']
+                })
+                    .then(res => {
+                        ///var text = "";
+                        //res.PrimarySearchResults.forEach((user: any) => {
+                        //    text += "USER:" + JSON.stringify(user);
+                        //});
+                        resolve(res);
+                    });
+            });
+
+
+
+            
+
+                    //let promises: Promise<any>[] = res.PrimarySearchResults.map((user: any) => {
+                    //    return sp.profiles.getPropertiesFor(user.AccountName);
+                    //});
+        });
+    }
+
+    getUserPrifileCount(): Promise<any> {
+
+        return new Promise<any>((resolve, reject) => {
+
+            var hostweb = this.getUrlParamByName("SPHostUrl");
+            var addinweb = this.getUrlParamByName("SPAppWebUrl");
+            var webServiceURL = hostweb + "/_vti_bin/UserProfileService.asmx";
+            //var webServiceURL = hostweb + "/_vti_bin/UserProfileService.asmx";
+
+            var SOAPEnvelopeHeader = "<soap:Envelope xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xmlns:xsd='http://www.w3.org/2001/XMLSchema' xmlns:soap='http://schemas.xmlsoap.org/soap/envelope/'><soap:Body>";
+            var SOAPEnvelopeFooter = "</soap:Body></soap:Envelope>";
+
+            $.ajax({
+                url: hostweb + "/_vti_bin/UserProfileService.asmx",
+                type: "POST",
+                dataType: "xml",
+                beforeSend: function (xhr) {
+                    xhr.setRequestHeader("SOAPAction", "http://microsoft.com/webservices/SharePointPortalServer/UserProfileService/GetUserProfileCount")
+                },
+                data: SOAPEnvelopeHeader + `<GetUserProfileCount xmlns="http://microsoft.com/webservices/SharePointPortalServer/UserProfileService" />` + SOAPEnvelopeFooter,
+                contentType: "text/xml;charset='utf-8'",
+                success: function (data, status) {
+                    resolve(data.d);
+                },
+                error: function (request, status, error) {
+                    reject("request=" + JSON.stringify(request) + ", status=" + status + ", error=" + error);
+                }
+            });
+        });
+    }
+
+
+    getUserPrifileByIndex = (userProfileIndex: number) => {
+        try {
+
+            this.setState({ message: "getUserPrifileByIndex start $()=" + JSON.stringify($()) });
+
+            var hostweb = this.getUrlParamByName("SPHostUrl");
+            var addinweb = this.getUrlParamByName("SPAppWebUrl");
+
+            var webServiceURL = addinweb + "/_vti_bin/UserProfileService.asmx?op=GetUserProfileCount";
+            var soapMessage = 
+                `<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+                    <soap12:Body>
+                        <GetUserProfileCount xmlns="http://microsoft.com/webservices/SharePointPortalServer/UserProfileService" />
+                    </soap12:Body>
+                </soap12:Envelope>`;
+
+            $.ajax({
+                url: webServiceURL,
+                type: "POST",
+                dataType: "xml",
+                data: soapMessage,
+                contentType: "text/xml; charset=\"utf-8\"",
+                success: function (data, status) {
+                    alert(data.d);
+                },
+                error: function (request, status, error) {
+                    alert('error');
+                }
+            });
+
+        }
+        catch (e) {
+            this.setState({ error: "error=" + JSON.stringify(e) });
+        }
+    }
+
+
 
     getUrlParamByName(name) {
         name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
@@ -266,6 +380,7 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
                                     if (!this.isInFieldsByInternalName(fields, "Department")) { await res.list.fields.createFieldAsXml(this.getTaxonomyFieldXml("1F2EF8CD-A280-4DAD-B915-21CC72E13974", "Department", "Department", "EmployeeCard", this.cleanGuid(termStoreData.Id), this.cleanGuid(termSetData1.Id), false)); }
                                     if (!this.isInFieldsByInternalName(fields, "JobTitle")) { await res.list.fields.createFieldAsXml(this.getTaxonomyFieldXml("76DA43C2-6AA7-4F66-8CEB-34D4C318DAD5", "JobTitle", "JobTitle", "EmployeeCard", this.cleanGuid(termStoreData.Id), this.cleanGuid(termSetData2.Id), false)); }
                                     if (!this.isInFieldsByInternalName(fields, "Gender")) { await res.list.fields.createFieldAsXml(this.getChoiceFieldXml("E5BBF051-5122-4A9C-94B9-4D08FBBD48EC", "Gender", "Gender", "EmployeeCard", false, ["Male", "Female"])); }
+                                    if (!this.isInFieldsByInternalName(fields, "LastModifiedTime")) { await res.list.fields.createFieldAsXml(this.getDateTimeFieldXml("F6B5C72F-2030-443B-A3A5-A65F68C390DF", "LastModifiedTime", "LastModifiedTime", "EmployeeCard", false, "DateTime")); }
                                     resolve();
                                 }
                                 catch (err) {
@@ -552,6 +667,10 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
 
     private getTextFieldXml(ID: string, DispalyName: string, Name: string, Group: string, required: boolean) {
         return `<Field ID="{${ID}}" Type="Text" Name="${Name}" DisplayName="${DispalyName}" Required="${required}" Group="${Group}"></Field>`;
+    }
+
+    private getDateTimeFieldXml(ID: string, DispalyName: string, Name: string, Group: string, required: boolean, Format: string) {
+        return `<Field ID="{${ID}}" Type="DateTime" Name="${Name}" Format="${Format}" DisplayName="${DispalyName}" Required="${required}" Group="${Group}"></Field>`;
     }
 
     private getTaxonomyFieldXml(ID: string, DispalyName: string, Name: string, Group: string, SspId: string, TermSetId: string, required: boolean): string {
