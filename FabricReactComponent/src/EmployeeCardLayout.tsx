@@ -71,6 +71,7 @@ export interface TreeViewItem {
     pictureURL?: string;
     email?: string;
     username?: string;
+    accountname?: string;
     id?: string;
 }
 
@@ -98,6 +99,9 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
 //itemRender = { (props) => {
 //    return <span> {props.item.text} </span>;
 //} }
+
+    // 
+    // <img className={"k-icon"} style={{ height: "2em", width: "2em", borderRadius: "50%" }} src={props.item.pictureURL} key={props.item.key} />
 
 
     render(): JSX.Element {
@@ -176,7 +180,10 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
 
         this.ensureLists()
             .then(res => {
-                this.populateRootAndFirstLevel()
+                /////////////////
+                // this.setState({ message: "Ensure lists ok!" });
+                ////////////////
+                this.populateTree()
                     .then((data: TreeViewItem[]) => {
                         this.setState({ treeViewData: data });
 
@@ -210,7 +217,7 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
         try {
             var lastItems: any[] = await sp.web.lists.getByTitle("EC_Cards").items.select("Id", "LastModifiedTime").top(1).orderBy("LastModifiedTime", false).get();
 
-            this.setState({ message: "get lastItems ok!" });
+            //this.setState({ message: "get lastItems ok!" });
 
             let lastModifiedTime: Date = new Date(1900, 0, 1);
             if (lastItems.length > 0) {
@@ -257,6 +264,8 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
                             FullName: userProfileObject["PreferredName"],
                             FirstName: userProfileObject["FirstName"],
                             LastName: userProfileObject["LastName"],
+                            AccountName: userProfileObject["AccountName"],
+                            UserName: userProfileObject["UserName"],
                             EMail: userProfileObject["WorkEmail"],
                             PictureURL: {
                                 "__metadata": { type: "SP.FieldUrlValue" },
@@ -275,6 +284,8 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
                             FullName: userProfileObject["PreferredName"],
                             FirstName: userProfileObject["FirstName"],
                             LastName: userProfileObject["LastName"],
+                            AccountName: userProfileObject["AccountName"],
+                            UserName: userProfileObject["UserName"],
                             EMail: userProfileObject["WorkEmail"],
                             PictureURL: {
                                 "__metadata": { type: "SP.FieldUrlValue" },
@@ -304,6 +315,7 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
         var results = regex.exec(location.search);
         return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
     }  
+
 
     getAddInHostWeb() {
         var addinweb = this.getUrlParamByName("SPAppWebUrl");
@@ -356,6 +368,8 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
 
                                 try {
                                     if (!this.isInFieldsByInternalName(fields, "SID")) { await res.list.fields.createFieldAsXml(this.getTextFieldXml("91542991-7F8B-4F5F-8B4F-9519CA9660BB", "SID", "SID", "EmployeeCard", false)); }
+                                    if (!this.isInFieldsByInternalName(fields, "AccountName")) { await res.list.fields.createFieldAsXml(this.getTextFieldXml("11542991-7FB8-4F5F-8B4F-9519CA9BC0BB", "AccountName", "AccountName", "EmployeeCard", true)); }
+                                    if (!this.isInFieldsByInternalName(fields, "UserName")) { await res.list.fields.createFieldAsXml(this.getTextFieldXml("11514299-9FB8-4F7F-9B4F-9519CA9BC0AB", "UserName", "UserName", "EmployeeCard", true)); }
                                     if (!this.isInFieldsByInternalName(fields, "FullName")) { await res.list.fields.createFieldAsXml(this.getTextFieldXml("9BD418AE-6026-48CA-9D68-F03749331C09", "FullName", "FullName", "EmployeeCard", false)); }
                                     if (!this.isInFieldsByInternalName(fields, "FirstName")) { await res.list.fields.createFieldAsXml(this.getTextFieldXml("DB207EE2-9FD4-439C-917B-2FA19AD14C24", "FirstName", "FirstName", "EmployeeCard", false)); }
                                     if (!this.isInFieldsByInternalName(fields, "LastName")) { await res.list.fields.createFieldAsXml(this.getTextFieldXml("77C24297-C373-47A4-A92A-B504F5DBD748", "LastName", "LastName", "EmployeeCard", false)); }
@@ -365,7 +379,6 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
                                     if (!this.isInFieldsByInternalName(fields, "Gender")) { await res.list.fields.createFieldAsXml(this.getChoiceFieldXml("E5BBF051-5122-4A9C-94B9-4D08FBBD48EC", "Gender", "Gender", "EmployeeCard", false, ["Male", "Female"])); }
                                     if (!this.isInFieldsByInternalName(fields, "LastModifiedTime")) { await res.list.fields.createFieldAsXml(this.getDateTimeFieldXml("F6B5C72F-2030-443B-A3A5-A65F68C390DF", "LastModifiedTime", "LastModifiedTime", "EmployeeCard", false, "DateTime")); }
                                     if (!this.isInFieldsByInternalName(fields, "PictureURL")) { await res.list.fields.createFieldAsXml(`<Field ID="{F6A5C72F-2730-443B-B9A5-A65F68C390DF}" Type="URL" Format="Image" Name="PictureURL" DisplayName="PictureURL" Required="false" Group="EmployeeCard"></Field>`); }
-                                    
                                     resolve();
                                 }
                                 catch (err) {
@@ -383,12 +396,12 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
         return fields.filter((field: any) => { return field["InternalName"] == name; }).length > 0;
     }
 
-    private getItems(parentPath: string, terms: ITermData[], expanded: boolean = false): TreeViewItem[] {
+    private getItemsTreeAndMap(map: Map<string, TreeViewItem>, parentPath: string, terms: ITermData[], expanded: boolean = false): TreeViewItem[] {
         return terms
             .filter((term: ITermData) => { return term.PathOfTerm == parentPath + (parentPath == "" ? "" : ";") + term.Name })
             .map(term => {
-                var items: TreeViewItem[] = this.getItems(term.PathOfTerm, terms);
-                return {
+                var items: TreeViewItem[] = this.getItemsTreeAndMap(map, term.PathOfTerm, terms);
+                var item = {
                     key: term.PathOfTerm,
                     text: term.Name,
                     expanded: expanded,
@@ -397,6 +410,8 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
                     id: term.Id,
                     items: items
                 };
+                map.set(this.cleanGuid(term.Id), item);
+                return item;
             });
     }
 
@@ -420,123 +435,79 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
 
             p2.then((terms: ITermData[]) => {
 
-                var items: TreeViewItem[] = this.getItems("", terms);
+                /////////////////
+                //this.setState({ message: "Terms ok!" });
+                ////////////////
 
-                let data: TreeViewItem[] = [{
+                var map: Map<string, TreeViewItem> = new Map();
+                var items: TreeViewItem[] = this.getItemsTreeAndMap(map, "", terms);
+                var item = {
                     key: "-Ы",
                     text: "Компанія",
                     expanded: true,
                     hasChildren: (items.length > 0),
                     type: "department",
-                    id: "",
+                    id: "-1",
                     items: items
-                }];
+                }
+                let data: TreeViewItem[] = [item];
+                map.set("-1", item);
+                resolve(data);
 
-                //sp.web.lists.getByTitle("EC_Cards").items.filter(`SID eq '${SID}'`).top(1).get();
+                //var str: string = "-------------map----------------";
+                //map.forEach((value, key, map) => {
+                //    str += ", key=" + key + " value.text=" + JSON.stringify(value.text);
+                //});
+                //this.setState({ message: this.state.message + ", MAP=" + str });
 
-                sp.search({
-                    Querytext: '*',
-                    SourceId: 'b09a7990-05ea-4af9-81ef-edfab16c4e31',
-                    RowLimit: 1000,
-                    RowsPerPage: 1000,
-                    SelectProperties: ['AccountName', 'Department', 'JobTitle', 'WorkEmail', 'Path', 'PictureURL', 'PreferredName', 'UserProfile_GUID', 'OriginalPath']
-                })
-                    .then(res => {
+                sp.web.lists.getByTitle("EC_Cards").items.getPaged()
+                    .then(async paged_items => {
+                        ///////////////////////////
+                        //this.setState({ message: "-----------------get cards paged------------ paged_items.hasNext=" + paged_items.hasNext + ", paged_items.results.length=" + paged_items.results.length });
 
-                        let promises: Promise<any>[] = res.PrimarySearchResults.map((user: any) => {
-                            return sp.profiles.getPropertiesFor(user.AccountName);
-                        });
+                        do {
+                            paged_items.results.forEach((card, card_index) => {
+                                //this.setState({ message: this.state.message + `,------------------card(${card_index})=${JSON.stringify(card)}` });
 
-                        Promise.all(promises)
-                            .then((allUsersProps: any[]) => {
+                                var itemByDep = map.get("-1");
+                                if (card["Department"] != null) {
+                                    var dep = card["Department"];
+                                    //this.setState({ message: this.state.message + "|||,dep:" + JSON.stringify(dep) });
+                                    var guid = dep["TermGuid"];
+                                    //this.setState({ message: this.state.message + ",TermGuid:" + guid});
+                                    itemByDep = map.get(guid);
+                                    //this.setState({ message: this.state.message + ",itemByDep:" + JSON.stringify(itemByDep) });
+                                }
 
-                                //this.setState({ message: "allUsersProps=" + JSON.stringify(allUsersProps) });
-
-                                //var searchresusers = [];
-
-                                allUsersProps.forEach((userProps: any) => {
-                                    let getItemsByDepartment = (itemsTree: TreeViewItem[], departmentText: string) => {
-                                        let resItems: TreeViewItem[] = [];
-                                        itemsTree.forEach(item => {
-                                            if (item.type == "department") {
-                                                if (item.text == departmentText) {
-                                                    resItems.push(item);
-                                                }
-                                                resItems.push(...getItemsByDepartment(item.items, departmentText));
-                                            }
-                                        });
-                                        return resItems;
-                                    };
-
-                                    userProps.UserProfileProperties.forEach((property: any) => {
-                                        userProps[property.Key] = property.Value;
-                                    });
-
-                                    //searchresusers.push({
-                                    //    "SPSDep": userProps["SPS-Department"],
-                                    //    "Acc": userProps["AccountName"],
-                                    //    "Name": userProps["PreferredName"],
-                                    //    "Url": decodeURI(userProps["PictureUrl"])
-                                    //});
-
-                                    getItemsByDepartment(data, userProps['SPS-Department']).forEach(item => {
-                                        item.items.push({
-                                            key: userProps["AccountName"],
-                                            email: userProps["Email"],
-                                            username: userProps["UserName"],
-                                            text: userProps["PreferredName"],
-                                            expanded: false,
-                                            hasChildren: false,
-                                            type: "user",
-                                            id: "",
-                                            items: [],
-                                            pictureURL: decodeURI(userProps["PictureUrl"])
-                                        });
-                                    });
+                                itemByDep.items.push({
+                                    key: card["SID"],
+                                    email: card["EMail"],
+                                    username: card["UserName"],
+                                    accountname: card["AccountName"],
+                                    text: card["FullName"],
+                                    expanded: false,
+                                    hasChildren: false,
+                                    type: "user",
+                                    id: card["ID"],
+                                    items: [],
+                                    pictureURL: card["PictureURL"] == null ? "" : decodeURI(card["PictureURL"]["Url"])
                                 });
-
-                                //allUsersProps.forEach((userProps: any) => {
-
-                                //    //let parent: any = 'root';
-                                //    //if (Rows.filter((row: EmployeeCardRow) => { return (row.id == userProps['Department']); }).length > 0) {
-                                //    //    parent = userProps['Department'];
-                                //    //}
-
-                                //    //Rows.push({
-                                //    //    id: userProps["AccountName"],
-                                //    //    parent: parent,
-                                //    //    text: userProps["DisplayName"],
-                                //    //    icon: "jstree-icon jstree-file",
-                                //    //    type: "person",
-                                //    //    title: userProps["Title"],
-                                //    //    email: userProps["Email"],
-                                //    //    birthday: userProps["SPS-Birthday"],
-                                //    //    workphone: userProps["WorkPhone"],
-                                //    //    WorkType: "",
-                                //    //    TabNum: "",
-                                //    //    idFirm: "1",
-                                //    //    FirmName: "Talan Systems",
-                                //    //    Auto_Card: userProps["AccountName"],
-                                //    //    CuratorFullName: "",
-                                //    //    CuratorAutoCard: userProps["Manager"],
-                                //    //    MobilePhone: userProps["CellPhone"],
-                                //    //    InternalPhone: "",
-                                //    //    Photo: userProps["PictureURL"]
-                                //    //});
-                                //});
-
-                                resolve(data);
-
-                            })
-                            .catch((err: any) => {
-                                reject(err);
+                                //this.setState({ message: this.state.message + ",---------------Title:" + card["Title"] + ", Department.TermGuid=" + this.cleanGuid(card["Department"]["TermGuid"]) + ", PictureURL" + card["PictureURL"]});
                             });
-                    })
-                    .catch(error => {
-                        this.setState({ error: "error=" + JSON.stringify(error) });
-                        resolve(data);
-                    });
 
+                            this.setState({ treeViewData: data });
+
+                            if (paged_items.hasNext) {
+                                paged_items = await paged_items.getNext();
+                            }
+                            else {
+                                break;
+                            }
+                        } while (true);
+                    })
+                    .catch(err => {
+                        this.setState({ error: "error=" + JSON.stringify(err) });
+                    });
             }).catch(error => {
                 this.setState({ error: "error=" + JSON.stringify(error) });
                 resolve([]);
@@ -544,7 +515,35 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
         });
     }
 
+    private getItems(parentPath: string, terms: ITermData[], expanded: boolean = false): TreeViewItem[] {
+        return terms
+            .filter((term: ITermData) => { return term.PathOfTerm == parentPath + (parentPath == "" ? "" : ";") + term.Name })
+            .map(term => {
+                var items: TreeViewItem[] = this.getItems(term.PathOfTerm, terms);
+                return {
+                    key: term.PathOfTerm,
+                    text: term.Name,
+                    expanded: expanded,
+                    hasChildren: (items.length > 0),
+                    type: "department",
+                    id: term.Id,
+                    items: items
+                };
+            });
+    }
 
+    private getItemsByDepartment = (itemsTree: TreeViewItem[], departmentText: string): TreeViewItem[] => {
+        let resItems: TreeViewItem[] = [];
+        itemsTree.forEach(item => {
+            if (item.type == "department") {
+                if (item.text == departmentText) {
+                    resItems.push(item);
+                }
+                resItems.push(...this.getItemsByDepartment(item.items, departmentText));
+            }
+        });
+        return resItems;
+    }
 
     private populateRootAndFirstLevel(): Promise<TreeViewItem[]> {
         return new Promise<any[]>((resolve, reject) => {
@@ -597,19 +596,11 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
 
                                 //var searchresusers = [];
 
+
+
+
+
                                 allUsersProps.forEach((userProps: any) => {
-                                    let getItemsByDepartment = (itemsTree: TreeViewItem[], departmentText: string) => {
-                                        let resItems: TreeViewItem[] = [];
-                                        itemsTree.forEach(item => {
-                                            if (item.type == "department") {
-                                                if (item.text == departmentText) {
-                                                    resItems.push(item);
-                                                }
-                                                resItems.push(...getItemsByDepartment(item.items, departmentText));
-                                            }
-                                        });
-                                        return resItems;
-                                    };
 
                                     userProps.UserProfileProperties.forEach((property: any) => {
                                         userProps[property.Key] = property.Value;
@@ -622,7 +613,7 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
                                     //    "Url": decodeURI(userProps["PictureUrl"])
                                     //});
 
-                                    getItemsByDepartment(data, userProps['SPS-Department']).forEach(item => {
+                                    this.getItemsByDepartment(data, userProps['SPS-Department']).forEach(item => {
                                         item.items.push({
                                             key: userProps["AccountName"],
                                             email: userProps["Email"],
@@ -808,6 +799,7 @@ export class EmployeeCardLayout extends React.Component<EmployeeCardLayoutProps,
             return '';
         }
     }
+
 
     private getChoiceFieldXml(ID: string, DispalyName: string, Name: string, Group: string, required: boolean, choices: string[]) {
         return `<Field ID="{${ID}}" Type="Choice" Name="${Name}" DisplayName="${DispalyName}" Required="${required}" Group="${Group}">

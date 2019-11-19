@@ -46,6 +46,7 @@
       <OpcRelationship>feature-elementmanifest</OpcRelationship>
     </Content>
     <Content Include="Pages\EmployeeCardWP.aspx" />
+    <Content Include="Scripts\App.js" />
     <Content Include="Scripts\jquery-1.9.1.intellisense.js" />
     <Content Include="Scripts\jquery-1.9.1.js" />
     <Content Include="Scripts\jquery-1.9.1.min.js" />
@@ -67,7 +68,6 @@
       <SharePointProjectItemId>{a0deb898-0257-483b-ba0b-fd5e94514010}</SharePointProjectItemId>
     </None>
     <Content Include="Scripts\Elements.xml" />
-    <Content Include="Scripts\App.js" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Content\SharePointProjectItem.spdata">
