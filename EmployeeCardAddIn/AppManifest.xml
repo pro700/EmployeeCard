@@ -3,7 +3,7 @@
 <App xmlns="http://schemas.microsoft.com/sharepoint/2012/app/manifest"
      Name="EmployeeCardAddIn"
      ProductID="{76198389-ec91-4d88-9eff-77a80bc367a4}"
-     Version="1.0.0.0"
+     Version="1.0.0.12"
      SharePointMinVersion="15.0.0.0"
 >
   <Properties>
@@ -19,5 +19,6 @@
     <AppPermissionRequest Scope="http://sharepoint/social/tenant" Right="FullControl" />
     <AppPermissionRequest Scope="http://sharepoint/taxonomy" Right="Write" />
     <AppPermissionRequest Scope="http://sharepoint/search" Right="QueryAsUserIgnoreAppPrincipal" />
+    <AppPermissionRequest Scope="http://sharepoint/content/sitecollection" Right="Write" />
   </AppPermissionRequests>
 </App>

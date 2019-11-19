@@ -48134,19 +48134,220 @@ var EmployeeCardLayout = /** @class */function (_super) {
         });
         this.ensureLists().then(function (res) {
             _this.populateRootAndFirstLevel().then(function (data) {
-                _this.setState({
-                    treeViewData: data
-                });
-                _this.getSearchedUsers().then(function (d) {
-                    _this.setState({ message: "getSearchedUsers() d=" + JSON.stringify(d) });
-                }).catch(function (err) {
-                    _this.setState({ error: "getSearchedUsers() err=" + err });
-                });
-                //window.setTimeout(this.getUserPrifileByIndex.bind(this), 1000, 0);
+                _this.setState({ treeViewData: data, message: "populateRootAndFirstLevel ok!" });
+                //this.getSearchedUsers()
+                //    .then(d => {
+                //        this.setState({ message: "getSearchedUsers() d=" + JSON.stringify(d) });
+                //    })
+                //    .catch(err => {
+                //        this.setState({ error: "getSearchedUsers() err=" + err });
+                //    });
+                window.setTimeout(_this.updateUserProfiles.bind(_this), 1000, 0);
+            }).catch(function (err) {
+                _this.setState({ error: "componentDidMount: populateRootAndFirstLevel() error=" + JSON.stringify(err) });
             });
         }).catch(function (err) {
-            _this.setState({
-                error: JSON.stringify(err)
+            _this.setState({ error: "componentDidMount: ensureLists() error=" + JSON.stringify(err) });
+        });
+    };
+    EmployeeCardLayout.prototype.updateUserProfilesNew = function () {
+        var _this = this;
+        var hostweb = this.getUrlParamByName("SPHostUrl");
+        var addinweb = this.getUrlParamByName("SPAppWebUrl");
+        sp_1.sp.setup({
+            sp: { baseUrl: addinweb }
+        });
+        function isValidDate(date) {
+            return date && Object.prototype.toString.call(date) === "[object Date]" && !isNaN(date);
+        }
+        ;
+        //const crossDomainWeb: Web = pnp.sp.crossDomainWeb(addinweb, hostweb);
+        sp_1.sp.web.lists.getByTitle("EC_Cards").items.select("Id", "LastModifiedTime").top(1).orderBy("LastModifiedTime", false).get().then(function (lastItems) {
+            _this.setState({ message: "get max ok!" });
+            var lastModifiedTime = new Date(1900, 0, 1);
+            if (lastItems.length > 0) {
+                var date = new Date(lastItems[0]["LastModifiedTime"]);
+                if (isValidDate(date)) {
+                    lastModifiedTime = date;
+                }
+            }
+            sp_1.sp.search({
+                Querytext: "LastModifiedTime>\"" + lastModifiedTime.toISOString() + "\"",
+                SourceId: 'b09a7990-05ea-4af9-81ef-edfab16c4e31',
+                RowLimit: 10,
+                SortList: [{ Property: "LastModifiedTime", Direction: sp_2.SortDirection.Ascending }],
+                SelectProperties: ['AccountName', 'LastModifiedTime', 'Department', 'JobTitle', 'WorkEmail', 'Path', 'PictureURL', 'PreferredName', 'UserProfile_GUID', 'OriginalPath']
+            }).then(function (searchRes) {
+                _this.setState({ message: "search max ok!" });
+                var accounts = [];
+                var promises = searchRes.PrimarySearchResults.map(function (searchResItem) {
+                    accounts.push(searchResItem.AccountName);
+                    return sp_1.sp.profiles.getPropertiesFor(searchResItem.AccountName);
+                });
+                Promise.all(promises).then(function (userProfilePropsArr) {
+                    _this.setState({ message: "get all user props ok!" });
+                    userProfilePropsArr.forEach(function (userProfileProps, userIndex) {
+                        var userProfileObject = {};
+                        userProfileProps.UserProfileProperties.forEach(function (property) {
+                            userProfileObject[property.Key] = property.Value;
+                        });
+                        var SID = userProfileObject["SID"];
+                        sp_1.sp.web.lists.getByTitle("EC_Cards").items.filter("SID eq '" + SID + "'").top(1).get().then(function (itemsBySID) {
+                            if (itemsBySID.length > 0) {
+                                var Id_1 = parseInt(itemsBySID[0]["ID"]);
+                                sp_1.sp.web.lists.getByTitle("EC_Cards").items.getById(Id_1).update({
+                                    FullName: userProfileObject["PreferredName"],
+                                    FirstName: userProfileObject["FirstName"],
+                                    LastName: userProfileObject["LastName"],
+                                    EMail: userProfileObject["WorkEmail"],
+                                    PictureURL: userProfileObject["PictureURL"],
+                                    LastModifiedTime: searchRes.PrimarySearchResults[userIndex]["LastModifiedTime"]
+                                }).then(function (res) {
+                                    var wait = searchRes.PrimarySearchResults.length > 0 ? 1000 : 10000;
+                                    window.setTimeout(_this.updateUserProfiles.bind(_this), wait, 0);
+                                }).catch(function (err) {
+                                    _this.setState({ error: "updateUserProfiles() crossDomainWeb.lists.getByTitle(\"EC_Cards\").items.getById(" + Id_1 + ").update error=" + err });
+                                });
+                            } else {
+                                sp_1.sp.web.lists.getByTitle("EC_Cards").items.add({
+                                    SID: SID,
+                                    FullName: userProfileObject["PreferredName"],
+                                    FirstName: userProfileObject["FirstName"],
+                                    LastName: userProfileObject["LastName"],
+                                    EMail: userProfileObject["WorkEmail"],
+                                    PictureURL: userProfileObject["PictureURL"],
+                                    LastModifiedTime: searchRes.PrimarySearchResults[userIndex]["LastModifiedTime"]
+                                }).then(function (res) {
+                                    var wait = searchRes.PrimarySearchResults.length > 0 ? 1000 : 10000;
+                                    window.setTimeout(_this.updateUserProfiles.bind(_this), wait, 0);
+                                }).catch(function (err) {
+                                    _this.setState({ error: "updateUserProfiles() crossDomainWeb.lists.getByTitle(\"EC_Cards\").items.add error=" + err });
+                                });
+                            }
+                        }).catch(function (err) {
+                            _this.setState({ error: "updateUserProfiles() crossDomainWeb.lists.getByTitle(\"EC_Cards\").items.filter(SID eq '" + SID + "') error=" + err });
+                        });
+                    });
+                }).catch(function (err) {
+                    _this.setState({ error: "updateUserProfiles() sp.profiles.getPropertiesFor(" + JSON.stringify(accounts) + ") error=" + err });
+                });
+            }).catch(function (err) {
+                _this.setState({ error: "updateUserProfiles() sp.search error=" + err });
+            });
+        }).catch(function (err) {
+            _this.setState({ error: "updateUserProfiles() sp.web.lists.getByTitle('EC_Cards') error=" + err });
+        });
+    };
+    EmployeeCardLayout.prototype.updateUserProfiles = function () {
+        return __awaiter(this, void 0, void 0, function () {
+            function isValidDate(date) {
+                return date && Object.prototype.toString.call(date) === "[object Date]" && !isNaN(date);
+            }
+            var hostweb, addinweb, crossDomainWeb, lastItems, lastModifiedTime, date, searchRes, index, searchResItem, userProfileProps, userProfileObject, SID, itemsBySID, Id, updateRes, addRes, ms, err_1;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        hostweb = this.getUrlParamByName("SPHostUrl");
+                        addinweb = this.getUrlParamByName("SPAppWebUrl");
+                        sp_1.sp.setup({
+                            sp: { baseUrl: addinweb }
+                        });
+                        ;
+                        crossDomainWeb = pnp.sp.crossDomainWeb(addinweb, hostweb);
+                        _a.label = 1;
+                    case 1:
+                        _a.trys.push([1, 12,, 13]);
+                        return [4 /*yield*/, sp_1.sp.web.lists.getByTitle("EC_Cards").items.select("Id", "LastModifiedTime").top(1).orderBy("LastModifiedTime", false).get()];
+                    case 2:
+                        lastItems = _a.sent();
+                        this.setState({ message: "get lastItems ok!" });
+                        lastModifiedTime = new Date(1900, 0, 1);
+                        if (lastItems.length > 0) {
+                            date = new Date(lastItems[0]["LastModifiedTime"]);
+                            if (isValidDate(date)) {
+                                lastModifiedTime = date;
+                            }
+                        }
+                        return [4 /*yield*/, sp_1.sp.search({
+                            Querytext: "LastModifiedTime>\"" + lastModifiedTime.toISOString() + "\"",
+                            SourceId: 'b09a7990-05ea-4af9-81ef-edfab16c4e31',
+                            RowLimit: 10,
+                            SortList: [{ Property: "LastModifiedTime", Direction: sp_2.SortDirection.Ascending }],
+                            SelectProperties: ['AccountName', 'LastModifiedTime', 'Department', 'JobTitle', 'WorkEmail', 'Path', 'PictureURL', 'PreferredName', 'UserProfile_GUID', 'OriginalPath']
+                        })];
+                    case 3:
+                        searchRes = _a.sent();
+                        this.setState({ message: this.state.message + ", search ok! count=" + searchRes.PrimarySearchResults.length });
+                        index = 0;
+                        _a.label = 4;
+                    case 4:
+                        if (!(index < searchRes.PrimarySearchResults.length)) return [3 /*break*/, 11];
+                        searchResItem = searchRes.PrimarySearchResults[index];
+                        return [4 /*yield*/, sp_1.sp.profiles.getPropertiesFor(searchResItem["AccountName"])];
+                    case 5:
+                        userProfileProps = _a.sent();
+                        this.setState({ message: this.state.message + (", index=" + index + ", getPropertiesFor(" + searchResItem["AccountName"] + ") ok!") });
+                        userProfileObject = {};
+                        userProfileProps.UserProfileProperties.forEach(function (property) {
+                            userProfileObject[property.Key] = property.Value;
+                        });
+                        SID = userProfileObject["SID"];
+                        return [4 /*yield*/, sp_1.sp.web.lists.getByTitle("EC_Cards").items.filter("SID eq '" + SID + "'").top(1).get()];
+                    case 6:
+                        itemsBySID = _a.sent();
+                        this.setState({ message: this.state.message + (", index=" + index + ", getItemsBySID(" + SID + ") ok! lenght=" + itemsBySID.length) });
+                        if (!(itemsBySID.length > 0)) return [3 /*break*/, 8];
+                        Id = parseInt(itemsBySID[0]["ID"]);
+                        return [4 /*yield*/, sp_1.sp.web.lists.getByTitle("EC_Cards").items.getById(Id).update({
+                            Title: userProfileObject["PreferredName"],
+                            FullName: userProfileObject["PreferredName"],
+                            FirstName: userProfileObject["FirstName"],
+                            LastName: userProfileObject["LastName"],
+                            EMail: userProfileObject["WorkEmail"],
+                            PictureURL: {
+                                "__metadata": { type: "SP.FieldUrlValue" },
+                                Description: "",
+                                Url: userProfileObject["PictureURL"]
+                            },
+                            LastModifiedTime: searchResItem["LastModifiedTime"]
+                        })];
+                    case 7:
+                        updateRes = _a.sent();
+                        this.setState({ message: this.state.message + (", " + index + " update ok!") });
+                        return [3 /*break*/, 10];
+                    case 8:
+                        return [4 /*yield*/, sp_1.sp.web.lists.getByTitle("EC_Cards").items.add({
+                            SID: SID,
+                            Title: userProfileObject["PreferredName"],
+                            FullName: userProfileObject["PreferredName"],
+                            FirstName: userProfileObject["FirstName"],
+                            LastName: userProfileObject["LastName"],
+                            EMail: userProfileObject["WorkEmail"],
+                            PictureURL: {
+                                "__metadata": { type: "SP.FieldUrlValue" },
+                                Description: "",
+                                Url: userProfileObject["PictureURL"]
+                            },
+                            LastModifiedTime: searchResItem["LastModifiedTime"]
+                        })];
+                    case 9:
+                        addRes = _a.sent();
+                        this.setState({ message: this.state.message + (", " + index + " add ok!") });
+                        _a.label = 10;
+                    case 10:
+                        index++;
+                        return [3 /*break*/, 4];
+                    case 11:
+                        ms = searchRes.PrimarySearchResults.length > 0 ? 1000 : 10000;
+                        window.setTimeout(this.updateUserProfiles.bind(this), ms, 0);
+                        return [3 /*break*/, 13];
+                    case 12:
+                        err_1 = _a.sent();
+                        this.setState({ error: "updateUserProfiles() try catch error=" + err_1 });
+                        return [3 /*break*/, 13];
+                    case 13:
+                        return [2 /*return*/];
+                }
             });
         });
     };
@@ -48161,29 +48362,82 @@ var EmployeeCardLayout = /** @class */function (_super) {
             sp_taxonomy_1.taxonomy.setup({
                 sp: { baseUrl: addinweb }
             });
+            function isValidDate(date) {
+                return date && Object.prototype.toString.call(date) === "[object Date]" && !isNaN(date);
+            }
+            ;
             var crossDomainWeb = pnp.sp.crossDomainWeb(addinweb, hostweb);
             crossDomainWeb.lists.getByTitle("EC_Cards").items.select("Id", "LastModifiedTime").top(1).orderBy("LastModifiedTime", false).get().then(function (items) {
                 var lastModifiedTime = new Date(1900, 0, 1);
                 if (items.length > 0) {
-                    lastModifiedTime = new Date(items["LastModifiedTime"]);
+                    var date = new Date(items[0]["LastModifiedTime"]);
+                    if (isValidDate(date)) {
+                        lastModifiedTime = date;
+                    }
                 }
                 sp_1.sp.search({
-                    Querytext: "LastModifiedTime>=\"" + lastModifiedTime.toISOString() + "\"",
+                    Querytext: "LastModifiedTime>\"" + lastModifiedTime.toISOString() + "\"",
                     SourceId: 'b09a7990-05ea-4af9-81ef-edfab16c4e31',
-                    RowLimit: 1,
+                    RowLimit: 10,
                     SortList: [{ Property: "LastModifiedTime", Direction: sp_2.SortDirection.Ascending }],
                     SelectProperties: ['AccountName', 'LastModifiedTime', 'Department', 'JobTitle', 'WorkEmail', 'Path', 'PictureURL', 'PreferredName', 'UserProfile_GUID', 'OriginalPath']
                 }).then(function (res) {
-                    ///var text = "";
+                    //var arr = [];
                     //res.PrimarySearchResults.forEach((user: any) => {
-                    //    text += "USER:" + JSON.stringify(user);
+                    //    arr.push(user);
                     //});
-                    resolve(res);
+                    //resolve(arr);
+                    var promises = res.PrimarySearchResults.map(function (searchResUser) {
+                        return sp_1.sp.profiles.getPropertiesFor(searchResUser.AccountName);
+                    });
+                    Promise.all(promises).then(function (allUsersProps) {
+                        var arr = [];
+                        allUsersProps.forEach(function (userProps, userIndex) {
+                            var user = {};
+                            userProps.UserProfileProperties.forEach(function (property) {
+                                user[property.Key] = property.Value;
+                            });
+                            var SID = user["SID"];
+                            crossDomainWeb.lists.getByTitle("EC_Cards").items.filter("SID eq '" + SID + "'").top(1).get().then(function (items) {
+                                if (items.length > 0) {
+                                    crossDomainWeb.lists.getByTitle("EC_Cards").items.getById(parseInt(items[0]["ID"])).update({
+                                        FullName: user["PreferredName"],
+                                        FirstName: user["FirstName"],
+                                        LastName: user["LastName"],
+                                        EMail: user["WorkEmail"],
+                                        LastModifiedTime: res.PrimarySearchResults[userIndex]["LastModifiedTime"]
+                                    }).then(function (res) {
+                                        resolve(["updating item", res]);
+                                    }).catch(function (err) {
+                                        reject(err);
+                                    });
+                                } else {
+                                    crossDomainWeb.lists.getByTitle("EC_Cards").items.add({
+                                        SID: SID,
+                                        FullName: user["PreferredName"],
+                                        FirstName: user["FirstName"],
+                                        LastName: user["LastName"],
+                                        EMail: user["WorkEmail"],
+                                        LastModifiedTime: res.PrimarySearchResults[userIndex]["LastModifiedTime"]
+                                    }).then(function (res) {
+                                        resolve(["adding item", res]);
+                                    }).catch(function (err) {
+                                        reject(err);
+                                    });
+                                }
+                            }).catch(function (err) {
+                                reject(err);
+                            });
+                        });
+                    }).catch(function (err) {
+                        reject(err);
+                    });
+                }).catch(function (err) {
+                    reject(err);
                 });
+            }).catch(function (err) {
+                reject(err);
             });
-            //let promises: Promise<any>[] = res.PrimarySearchResults.map((user: any) => {
-            //    return sp.profiles.getPropertiesFor(user.AccountName);
-            //});
         });
     };
     EmployeeCardLayout.prototype.getUserPrifileCount = function () {
@@ -48248,8 +48502,8 @@ var EmployeeCardLayout = /** @class */function (_super) {
             sp_taxonomy_1.taxonomy.setup({
                 sp: { baseUrl: addinweb }
             });
-            var web = pnp.sp.crossDomainWeb(addinweb, hostweb);
-            web.lists.ensure("EC_Cards").then(function (res) {
+            //const web: Web = pnp.sp.crossDomainWeb(addinweb, hostweb);
+            sp_1.sp.web.lists.ensure("EC_Cards").then(function (res) {
                 res.list.fields.select("Title", "InternalName", "TypeAsString").get().then(function (fields) {
                     var session1 = new sp_taxonomy_1.Session(addinweb);
                     var p1 = session1.getDefaultSiteCollectionTermStore().get();
@@ -48260,11 +48514,11 @@ var EmployeeCardLayout = /** @class */function (_super) {
                             termSetData1 = _a[1],
                             termSetData2 = _a[2];
                         return __awaiter(_this, void 0, void 0, function () {
-                            var err_1;
+                            var err_2;
                             return __generator(this, function (_b) {
                                 switch (_b.label) {
                                     case 0:
-                                        _b.trys.push([0, 19,, 20]);
+                                        _b.trys.push([0, 21,, 22]);
                                         if (!!this.isInFieldsByInternalName(fields, "SID")) return [3 /*break*/, 2];
                                         return [4 /*yield*/, res.list.fields.createFieldAsXml(this.getTextFieldXml("91542991-7F8B-4F5F-8B4F-9519CA9660BB", "SID", "SID", "EmployeeCard", false))];
                                     case 1:
@@ -48319,13 +48573,19 @@ var EmployeeCardLayout = /** @class */function (_super) {
                                         _b.sent();
                                         _b.label = 18;
                                     case 18:
-                                        resolve();
-                                        return [3 /*break*/, 20];
+                                        if (!!this.isInFieldsByInternalName(fields, "PictureURL")) return [3 /*break*/, 20];
+                                        return [4 /*yield*/, res.list.fields.createFieldAsXml("<Field ID=\"{F6A5C72F-2730-443B-B9A5-A65F68C390DF}\" Type=\"URL\" Format=\"Image\" Name=\"PictureURL\" DisplayName=\"PictureURL\" Required=\"false\" Group=\"EmployeeCard\"></Field>")];
                                     case 19:
-                                        err_1 = _b.sent();
-                                        reject(err_1);
-                                        return [3 /*break*/, 20];
+                                        _b.sent();
+                                        _b.label = 20;
                                     case 20:
+                                        resolve();
+                                        return [3 /*break*/, 22];
+                                    case 21:
+                                        err_2 = _b.sent();
+                                        reject(err_2);
+                                        return [3 /*break*/, 22];
+                                    case 22:
                                         return [2 /*return*/];
                                 }
                             });
@@ -48335,7 +48595,7 @@ var EmployeeCardLayout = /** @class */function (_super) {
                     return reject(err);
                 });
             }).catch(function (err) {
-                return reject(err);
+                return reject({ catch: "sp.web.lists.ensure('EC_Cards')", err: err });
             });
         });
     };
